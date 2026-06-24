@@ -109,6 +109,27 @@ def dm04_cal_wordcount():
     print(f"dev vocab count: {len(dev_vocab)}")
 
 
+def get_a_list(text):
+    # Extract adjectives (POS tag 'a') from text
+    r = []
+    for g in pseg.lcut(text):
+        if g.flag == 'a':  # 'a' = adjective
+            r.append(g.word)
+    return r
+
+
+def get_word_cloud(keywords_list):
+    # Generate word cloud from keywords list
+    wordcloud = WordCloud(font_path="./SimHei.ttf", max_words=100, background_color='white')
+    keywords_string = " ".join(keywords_list)
+    wordcloud.generate(keywords_string)
+
+    plt.figure()
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis('off')
+    plt.show()
+
+
 if __name__ == '__main__':
     # dm01_label_sns_countplot()
     # dm02_len_sns_countplot_distplot()
