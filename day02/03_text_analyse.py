@@ -130,11 +130,31 @@ def get_word_cloud(keywords_list):
     plt.show()
 
 
+def dm_word_cloud():
+    # Generate word clouds for positive and negative samples
+    train_data = pd.read_csv('./data/train.tsv', sep='\t')
+
+    # Positive samples (label == 1)
+    p_train_data = train_data[train_data['label'] == 1]['sentence']
+    # Get adjectives from all positive sentences
+    p_a_train_vocab = chain(*map(lambda x: get_a_list(x), p_train_data))
+    get_word_cloud(p_a_train_vocab)
+
+    print('*' * 60)
+
+    # Negative samples (label == 0)
+    n_train_data = train_data[train_data['label'] == 0]['sentence']
+    # Get adjectives from all negative sentences
+    n_a_train_vocab = chain(*map(lambda x: get_a_list(x), n_train_data))
+    get_word_cloud(n_a_train_vocab)
+
+
 if __name__ == '__main__':
     # dm01_label_sns_countplot()
     # dm02_len_sns_countplot_distplot()
     # dm03_sns_stripplot()
-    dm04_cal_wordcount()
+    # dm04_cal_wordcount()
+    dm_word_cloud()
 
 
 
