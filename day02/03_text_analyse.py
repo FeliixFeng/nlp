@@ -75,11 +75,30 @@ def dm02_len_sns_countplot_distplot():
     plt.show()
 
 
+def dm03_sns_stripplot():
+    # Scatter plot of sentence length by label (positive/negative)
+    plt.style.use('fivethirtyeight')
+
+    train_data = pd.read_csv('./data/train.tsv', sep='\t')
+    dev_data = pd.read_csv('./data/dev.tsv', sep='\t')
+
+    # Add sentence length column
+    train_data['sentence_length'] = train_data['sentence'].apply(len)
+
+    # Strip plot: y=length, x=label
+    sns.stripplot(y='sentence_length', x='label', data=train_data)
+    plt.show()
+
+    # Same for dev set
+    dev_data['sentence_length'] = dev_data['sentence'].apply(len)
+    sns.stripplot(y='sentence_length', x='label', data=dev_data)
+    plt.show()
 
 
 if __name__ == '__main__':
     # dm01_label_sns_countplot()
-    dm02_len_sns_countplot_distplot()
+    # dm02_len_sns_countplot_distplot()
+    dm03_sns_stripplot()
 
 
 
