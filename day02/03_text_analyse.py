@@ -86,7 +86,7 @@ def dm03_sns_stripplot():
     train_data['sentence_length'] = train_data['sentence'].apply(len)
 
     # Strip plot: y=length, x=label
-    sns.stripplot(y='sentence_length', x='label', data=train_data)
+    sns.stripplot(y='sentence_length', x='label', data=train_data, hue='label')
     plt.show()
 
     # Same for dev set
@@ -95,10 +95,25 @@ def dm03_sns_stripplot():
     plt.show()
 
 
+def dm04_cal_wordcount():
+    # Count unique words in train & dev sets
+    train_data = pd.read_csv('./data/train.tsv', sep='\t')
+    dev_data = pd.read_csv('./data/dev.tsv', sep='\t')
+
+    # Seg every sentence, flatten to one list, then use set to get unique words
+    # chain(*map(...)) unpacks map object and chains all lists into one iterator
+    train_vocab = set(chain(*map(lambda x: jieba.lcut(x), train_data['sentence'])))
+    print(f"train vocab count: {len(train_vocab)}")
+
+    dev_vocab = set(chain(*map(lambda x: jieba.lcut(x), dev_data['sentence'])))
+    print(f"dev vocab count: {len(dev_vocab)}")
+
+
 if __name__ == '__main__':
     # dm01_label_sns_countplot()
     # dm02_len_sns_countplot_distplot()
-    dm03_sns_stripplot()
+    # dm03_sns_stripplot()
+    dm04_cal_wordcount()
 
 
 
