@@ -6,7 +6,7 @@ import fasttext
 
 
 def dm01_train_save():
-    """Train word2vec model and save to file"""
+    # Train word2vec model and save to file
     my_model = fasttext.train_unsupervised('./data/wh02aa')
 
     my_model.save_model('./model/wh02aa.bin')
@@ -14,7 +14,7 @@ def dm01_train_save():
 
 
 def dm02_get_word_vector():
-    """Get word vector for a word"""
+    # Get word vector for a word
     my_model = fasttext.load_model('./model/wh02aa.bin')
 
     results = my_model.get_word_vector("the")
@@ -24,7 +24,7 @@ def dm02_get_word_vector():
 
 
 def dm03_get_similarity():
-    """Find similar words"""
+    # Find similar words
     my_model = fasttext.load_model('./model/wh02aa.bin')
     results = my_model.get_nearest_neighbors("dog")
     print(f'type: {type(results)}')
@@ -32,7 +32,7 @@ def dm03_get_similarity():
 
 
 def dm04_set_hyperparameter():
-    """Train model with custom hyperparameters"""
+    # Train model with custom hyperparameters
     my_model = fasttext.train_unsupervised(
         input='./data/wh02aa',
         model='cbow',
@@ -43,7 +43,7 @@ def dm04_set_hyperparameter():
     )
 
     my_model.save_model('./model/wh02aa-set.bin')
-
+ 
 
 if __name__ == '__main__':
     # dm01_train_save()
