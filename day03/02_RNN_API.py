@@ -28,3 +28,65 @@
                 Forward GRU + Backward GRU, then concatenate
                 (从前往后做一次GRU，从后往前做一次GRU，然后拼接)
 """
+import torch
+import torch.nn as nn
+
+
+
+def dm_rnn_for_base():
+    # 1. Create RNN model
+    # para1: input_size (embedding_dim)
+    # para2: hidden_size (hidden_dim)
+    # para3: num_layers (number of hidden layers)
+    rnn = nn.RNN(5, 6, 1)
+
+    # 2. Prepare input data
+    # Shape: (seq_len, batch_size, input_size)
+    input = torch.randn(1, 3, 5)
+
+    # 3. Initialize hidden state
+    # Shape: (num_layers, batch_size, hidden_size)
+    h0 = torch.randn(1, 3, 6)
+
+    # 4. Run RNN
+    output, hn = rnn(input, h0)
+
+    print(f'output: {output}, output.shape: {output.shape}')
+    print(f'hidden: {hn}, hidden.shape: {hn.shape}')
+    print(f'rnn: {rnn}')
+
+def dm_rnn_for_sequence():
+    # 1. Create RNN model
+    # para1: input_size (embedding_dim)
+    # para2: hidden_size (hidden_dim)
+    # para3: num_layers (number of hidden layers)
+    rnn = nn.RNN(5, 6, 1)
+
+    # 2. Prepare input data (longer sequence: 20 steps)
+    # Shape: (seq_len, batch_size, input_size)
+    input = torch.randn(20, 3, 5)
+
+    # 3. Initialize hidden state
+    # Shape: (num_layers, batch_size, hidden_size)
+    h0 = torch.randn(1, 3, 6)
+
+    # 4. Run RNN
+    output, hn = rnn(input, h0)
+
+    print(f'output: {output}, output.shape: {output.shape}')
+    print(f'hidden: {hn}, hidden.shape: {hn.shape}')
+    print(f'rnn: {rnn}')
+
+
+
+if __name__ == '__main__':
+    # dm_rnn_for_base()
+    dm_rnn_for_sequence()
+
+
+
+
+
+
+
+
