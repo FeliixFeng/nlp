@@ -100,10 +100,31 @@ def dm_lstm_base():
     print(f'lstm: {lstm}')
 
 
+def dm_gru_base():
+    # GRU: simplified LSTM, no cell state needed
+    # (GRU是LSTM的简化版，不需要细胞状态)
+    gru = nn.GRU(5, 6, 1)
+
+    # Input shape: (seq_len, batch_size, input_size)
+    input = torch.randn(1, 3, 5)
+
+    # GRU only needs hidden state (same as RNN)
+    # (GRU只需要隐藏状态，和RNN一样)
+    h0 = torch.randn(1, 3, 6)
+
+    # Run GRU: returns output, hn (no cn!)
+    output, hn = gru(input, h0)
+
+    print(f'output: {output.shape}')
+    print(f'hidden: {hn.shape}')
+    print(f'gru: {gru}')
+
+
 if __name__ == '__main__':
     # dm_rnn_for_base()
     # dm_rnn_for_sequence()
-    dm_lstm_base()
+    # dm_lstm_base()
+    dm_gru_base()
 
 
 
