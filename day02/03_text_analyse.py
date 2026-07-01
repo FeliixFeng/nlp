@@ -120,7 +120,7 @@ def get_a_list(text):
 
 def get_word_cloud(keywords_list):
     # Generate word cloud from keywords list
-    wordcloud = WordCloud(font_path="./SimHei.ttf", max_words=100, background_color='white')
+    wordcloud = WordCloud(font_path="./data/SimHei.ttf", max_words=100, background_color='white')
     keywords_string = " ".join(keywords_list)
     wordcloud.generate(keywords_string)
 

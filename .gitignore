@@ -58,3 +58,5 @@ wandb/
 # OS
 .DS_Store
 Thumbs.db
+day04/img/
+day04/model/
