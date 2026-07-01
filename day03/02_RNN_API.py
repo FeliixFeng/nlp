@@ -79,9 +79,31 @@ def dm_rnn_for_sequence():
 
 
 
+def dm_lstm_base():
+    # LSTM: adds cell state to remember long-term dependencies
+    # (LSTM增加了细胞状态，用于记忆长期依赖)
+    lstm = nn.LSTM(5, 6, 1)
+
+    # Input shape: (seq_len, batch_size, input_size)
+    input = torch.randn(1, 3, 5)
+
+    # LSTM needs both hidden state (h0) and cell state (c0)
+    # (LSTM需要同时初始化隐藏状态和细胞状态)
+    h0 = torch.randn(1, 3, 6)
+    c0 = torch.randn(1, 3, 6)
+
+    # Run LSTM: returns output, (hn, cn)
+    output, (hn, cn) = lstm(input, (h0, c0))
+
+    print(f'output: {output.shape}')
+    print(f'hidden: {hn.shape}, cell: {cn.shape}')
+    print(f'lstm: {lstm}')
+
+
 if __name__ == '__main__':
     # dm_rnn_for_base()
-    dm_rnn_for_sequence()
+    # dm_rnn_for_sequence()
+    dm_lstm_base()
 
 
 
