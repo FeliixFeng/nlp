@@ -109,16 +109,80 @@ def my_getdata():
     french_index2word = {v : k for k, v in french_word2index.items()}
 
     # Return all dictionaries and vocabulary sizes
-    return (english_index2word, english_index2word, english_word_n,
-            french_word2index, french_index2word, french_word_n)
+    return (english_index2word, english_word2index, english_word_n,
+            french_word2index, french_index2word, french_word_n, my_pairs)
+
+
+english_index2word, english_word2index, english_word_n, french_word2index, french_index2word, french_word_n, my_pairs = my_getdata()
+
+
+# ========================================
+# Dataset class for PyTorch DataLoader
+# ========================================
+class MyPairsDataset(Dataset):
+    def __init__(self, my_pairs):
+        """
+        Initialize dataset
+        Args:
+            my_pairs: list of [english, french] pairs
+        """
+        # Store sample data
+        self.my_pairs = my_pairs
+        # Number of samples
+        self.sample_len = len(my_pairs)
+
+    def __len__(self):
+        """Return number of samples"""
+        return self.sample_len
+
+    def __getitem__(self, index):
+        """
+        Get sample by index
+        Args:
+            index: sample index
+        Returns:
+            tensor_x: English tensor
+            tensor_y: French tensor
+        """
+        # Fix index out of range
+        index = min(max(index, 0), self.sample_len - 1)
+
+        # Get sample x (English) and y (French)
+        x = self.my_pairs[index][0]
+        y = self.my_pairs[index][1]
+
+        # Convert English text to numbers
+        x = [english_word2index[word] for word in x.split(' ')]
+        x.append(EOS_token)
+        tensor_x = torch.tensor(x, dtype=torch.long, device=device)
+
+        # Convert French text to numbers
+        y = [french_word2index[word] for word in y.split(' ')]
+        y.append(EOS_token)
+        tensor_y = torch.tensor(y, dtype=torch.long, device=device)
+
+        # Note: tensor_x and tensor_y are 1D arrays
+        # DataLoader will batch them into 2D arrays
+
+        return tensor_x, tensor_y
+
+
+def get_dataloader():
+    my_dataset = MyPairsDataset(my_pairs)
+
+    my_dataloader = DataLoader(my_dataset, batch_size=1, shuffle=True)
+
+    for i, (x, y) in enumerate(my_dataloader):
+        print(f'x: {x.shape}, {x}')
+        print(f'y: {y.shape}, {y}')
+
+        break
+
+    return my_dataloader
+
 
 
 # Test the function
 if __name__ == '__main__':
-    english_index2word, english_index2word, english_word_n,french_word2index, french_index2word, french_word_n=  my_getdata()
-    print(english_index2word)
-    print(french_index2word)
-    print(english_word_n)
-    print(french_word_n)
-    print(english_index2word)
-    print(french_index2word)
+    get_dataloader()
+    pass
