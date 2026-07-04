@@ -181,8 +181,286 @@ def get_dataloader():
     return my_dataloader
 
 
+# ========================================
+# GRU Encoder
+# ========================================
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        """
+        Initialize GRU Encoder
+        Args:
+            input_size: vocabulary size (number of unique words)
+            hidden_size: embedding dimension (feature size per word)
+        """
+        super(EncoderRNN, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+
+        # Embedding layer: converts word indices to dense vectors
+        # input_size: vocabulary size, hidden_size: embedding dimension
+        self.embedding = nn.Embedding(input_size, hidden_size)
+
+        # GRU layer: processes sequences
+        # batch_first=True: input shape (batch, seq, feature)
+        self.gru = nn.GRU(hidden_size, hidden_size, batch_first=True)
+
+    def forward(self, input, hidden):
+        """
+        Forward pass
+        Args:
+            input: input tensor (word indices)
+            hidden: initial hidden state
+        Returns:
+            output: GRU output for all time steps
+            hidden: final hidden state (context vector)
+        """
+        # Embedding: [batch, seq_len] → [batch, seq_len, hidden_size]
+        output = self.embedding(input)
+
+        # GRU: process sequence
+        # output: all hidden states [batch, seq_len, hidden_size]
+        # hidden: last hidden state [1, batch, hidden_size]
+        output, hidden = self.gru(output, hidden)
+
+        return output, hidden
+
+    def init_hidden(self):
+        """Initialize hidden state with zeros"""
+        # Shape: [1, 1, hidden_size]
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+
+
+# ========================================
+# GRU Decoder (without Attention)
+# ========================================
+class DecoderRNN(nn.Module):
+    def __init__(self, hidden_size, output_size):
+        """
+        Initialize GRU Decoder
+        Args:
+            hidden_size: embedding dimension
+            output_size: output vocabulary size (for prediction)
+        """
+        super().__init__()
+        self.output_size = output_size
+        self.hidden_size = hidden_size
+
+        # Embedding layer: converts word indices to dense vectors
+        self.embedding = nn.Embedding(output_size, hidden_size)
+
+        # GRU layer: processes decoder input sequence
+        self.gru = nn.GRU(hidden_size, hidden_size, batch_first=True)
+
+        # Fully connected layer: maps hidden state to vocabulary
+        self.out = nn.Linear(hidden_size, output_size)
+
+        # LogSoftmax: outputs log probabilities for each word
+        self.softmax = nn.LogSoftmax(dim=-1)
+
+    def forward(self, input, hidden):
+        """
+        Forward pass
+        Args:
+            input: decoder input (previous word indices)
+            hidden: hidden state from encoder or previous step
+        Returns:
+            output: log probabilities for next word
+            hidden: updated hidden state
+        """
+        # Embedding: [batch, 1] → [batch, 1, hidden_size]
+        output = self.embedding(input)
+
+        # ReLU activation
+        output = F.relu(output)
+
+        # GRU: [batch, 1, hidden_size] → [batch, 1, hidden_size]
+        output, hidden = self.gru(output, hidden)
+
+        # Linear + Softmax: [1, hidden_size] → [output_size]
+        output = self.softmax(self.out(output[0]))
+
+        return output, hidden
+
+    def init_hidden(self):
+        """Initialize hidden state with zeros"""
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+
+
+def dm_test_decoder():
+    my_dataloader = get_dataloader()
+
+    my_encoder_gru = EncoderRNN(input_size=english_word_n, hidden_size=256).to(device)
+
+    my_decoder_gru = DecoderRNN(output_size=french_word_n, hidden_size=256).to(device)
+    print(f'my_encoder_gru: {my_encoder_gru}')
+    print(f'my_decoder_gru: {my_decoder_gru}')
+
+    for i, (x, y) in enumerate(my_dataloader):
+        print(f'输入数据信息(英语句子): {x.shape}')
+        print(f'输入数据信息(法语句子): {y.shape}')
+
+        h0 = my_encoder_gru.init_hidden()
+
+        encoder_output_c, hidden = my_encoder_gru.forward(x, h0)
+
+        # concrete decoder
+        for i in range(y.shape[1]):
+            tmp = y[0][i].view(1, -1)
+
+            output, hidden = my_decoder_gru.forward(tmp, hidden)
+
+            print(f'the {i+1} output: {output}, {output.shape}')
+        print('\n'*5)
+
+
+# ========================================
+# GRU Decoder (with Attention)
+# ========================================
+class AttnDecoderRNN(nn.Module):
+    def __init__(self, output_size, hidden_size, dropout_p=0.1, max_length=MAX_LENGTH):
+        """
+        Initialize Attention Decoder
+        Args:
+            output_size: target vocabulary size (French)
+            hidden_size: embedding dimension
+            dropout_p: dropout probability (default 0.1)
+            max_length: maximum sequence length (default 10)
+        """
+        super().__init__()
+        self.output_size = output_size
+        self.hidden_size = hidden_size
+        self.dropout_p = dropout_p
+        self.max_length = max_length
+
+        # Embedding layer: converts word indices to dense vectors
+        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+
+        # Attention layer: Q and K concatenated → attention scores
+        # input: hidden_size * 2 (embedded + hidden), output: max_length
+        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
+
+        # Combine layer: merge embedded + attention applied
+        # input: hidden_size * 2, output: hidden_size
+        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+
+        # Dropout layer: prevent overfitting
+        self.dropout = nn.Dropout(self.dropout_p)
+
+        # GRU layer: process decoder input
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
+
+        # Output layer: map to vocabulary
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+        # LogSoftmax: output log probabilities
+        self.softmax = nn.LogSoftmax(dim=-1)
+
+    def forward(self, input, hidden, encoder_outputs):
+        """
+        Forward pass with attention
+        Args:
+            input: decoder input (word indices)
+            hidden: hidden state from previous step
+            encoder_outputs: all encoder outputs [seq_len, hidden_size]
+        Returns:
+            output: log probabilities for next word
+            hidden: updated hidden state
+            attn_weights: attention weights (for visualization)
+        """
+        # Embedding: [1, 1] → [1, 1, hidden_size]
+        embedded = self.embedding(input)
+        embedded = F.relu(embedded)
+
+        # Attention calculation:
+        # Concatenate embedded and hidden → [1, hidden_size * 2]
+        # → Linear → [1, max_length] → softmax → attention weights [1, max_length]
+        attn_weights = F.softmax(
+            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1
+        )
+
+        # Apply attention to encoder outputs:
+        # attn_weights [1, 1, max_length] × encoder_outputs [1, max_length, hidden_size]
+        # → attn_applied [1, 1, hidden_size]
+        attn_applied = torch.bmm(attn_weights.unsqueeze(0), encoder_outputs.unsqueeze(0))
+
+        # Combine: concatenate embedded and attention applied
+        # [1, hidden_size] + [1, hidden_size] → [1, hidden_size * 2]
+        output = torch.cat((embedded[0], attn_applied[0]), 1)
+
+        # Linear: [1, hidden_size * 2] → [1, hidden_size]
+        output = self.attn_combine(output).unsqueeze(0)
+        output = F.relu(output)
+
+        # GRU: [1, 1, hidden_size] → [1, 1, hidden_size]
+        output, hidden = self.gru(output, hidden)
+
+        # Output: [1, hidden_size] → [output_size]
+        output = self.softmax(self.out(output[0]))
+
+        return output, hidden, attn_weights
+
+    def init_hidden(self):
+        """Initialize hidden state with zeros"""
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+
+
+# ========================================
+# Test functions
+# ========================================
+def dm_test_AttnDecoderRNN():
+    """Test Attention Decoder"""
+    print("=" * 50)
+    print("Testing AttnDecoderRNN")
+    print("=" * 50)
+
+    # 1. Create dataset
+    mypairsdataset = MyPairsDataset(my_pairs)
+    print('mypairsdataset--->', mypairsdataset)
+
+    # 2. Create dataloader
+    mydataloader = DataLoader(dataset=mypairsdataset, batch_size=1, shuffle=True)
+
+    # 3. Create models
+    myencodemodel = EncoderRNN(english_word_n, 256).to(device)
+    mydecodemodel = AttnDecoderRNN(
+        output_size=french_word_n,
+        hidden_size=256,
+        dropout_p=0.1,
+        max_length=MAX_LENGTH
+    ).to(device)
+    print('mydecodemodel attention--->', mydecodemodel)
+
+    # 4. Get data and test
+    for i, (x, y) in enumerate(mydataloader):
+        print('x--->', x, x.shape)
+        print('y--->', y, y.shape)
+
+        # Encode: get encoder outputs and hidden state
+        inithiden = myencodemodel.init_hidden()
+        output, hidden = myencodemodel(x, inithiden)
+        print('encoder output shape:', output.shape)
+        print('hidden shape:', hidden.shape)
+
+        # Prepare encoder outputs for attention (pad to max_length=10)
+        encode_output_c = torch.zeros(MAX_LENGTH, 256, device=device)
+        for idx in range(output.shape[1]):
+            encode_output_c[idx] = output[0, idx]
+
+        # Decode: use encoder's last hidden state
+        hidden = hidden  # Use encoder's hidden as decoder's initial hidden
+        for i in range(y.shape[1]):
+            tmp = y[0][i].view(1, -1)
+            output, hidden, attn_weights = mydecodemodel(tmp, hidden, encode_output_c)
+            print('decoder output shape:', output.shape)
+
+        break
+
+    print("=" * 50)
+    print("Test completed!")
+    print("=" * 50)
+
 
 # Test the function
 if __name__ == '__main__':
-    get_dataloader()
+    dm_test_AttnDecoderRNN()
     pass
