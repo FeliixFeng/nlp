@@ -21,7 +21,7 @@ device = 'mps'
 print(f'当前设备: {device}')
 
 # ========================================
-# Todo 1: Define special tokens
+# Special tokens and constants
 # ========================================
 # Start of Sentence token
 SOS_token = 0
@@ -31,8 +31,6 @@ EOS_token = 1
 MAX_LENGTH = 10
 # Data file path
 data_path = './data/eng-fra-v2.txt'
-
-# Todo 2: ...
 
 
 # ========================================
@@ -68,12 +66,9 @@ def my_getdata():
     # 1. Read file line by line
     # open().read().strip().split('\n')
     my_lines = open(data_path, encoding='utf-8').read().strip().split('\n')
-    # print(f'my_lines--->', len(my_lines))
 
     # 2. Process each line: split by tab and normalize
     my_pairs = [[normalizeString(s) for s in l.split('\t')] for l in my_lines]
-
-
 
     # 3. Build vocabulary for English and French
     # 3-1 Initialize word2index dictionaries
@@ -168,16 +163,9 @@ class MyPairsDataset(Dataset):
 
 
 def get_dataloader():
+    """Create DataLoader for training"""
     my_dataset = MyPairsDataset(my_pairs)
-
     my_dataloader = DataLoader(my_dataset, batch_size=1, shuffle=True)
-
-    for i, (x, y) in enumerate(my_dataloader):
-        print(f'x: {x.shape}, {x}')
-        print(f'y: {y.shape}, {y}')
-
-        break
-
     return my_dataloader
 
 
@@ -286,33 +274,6 @@ class DecoderRNN(nn.Module):
         return torch.zeros(1, 1, self.hidden_size, device=device)
 
 
-def dm_test_decoder():
-    my_dataloader = get_dataloader()
-
-    my_encoder_gru = EncoderRNN(input_size=english_word_n, hidden_size=256).to(device)
-
-    my_decoder_gru = DecoderRNN(output_size=french_word_n, hidden_size=256).to(device)
-    print(f'my_encoder_gru: {my_encoder_gru}')
-    print(f'my_decoder_gru: {my_decoder_gru}')
-
-    for i, (x, y) in enumerate(my_dataloader):
-        print(f'输入数据信息(英语句子): {x.shape}')
-        print(f'输入数据信息(法语句子): {y.shape}')
-
-        h0 = my_encoder_gru.init_hidden()
-
-        encoder_output_c, hidden = my_encoder_gru.forward(x, h0)
-
-        # concrete decoder
-        for i in range(y.shape[1]):
-            tmp = y[0][i].view(1, -1)
-
-            output, hidden = my_decoder_gru.forward(tmp, hidden)
-
-            print(f'the {i+1} output: {output}, {output.shape}')
-        print('\n'*5)
-
-
 # ========================================
 # GRU Decoder (with Attention)
 # ========================================
@@ -405,62 +366,12 @@ class AttnDecoderRNN(nn.Module):
 
 
 # ========================================
-# Test functions
+# Main entry point
 # ========================================
-def dm_test_AttnDecoderRNN():
-    """Test Attention Decoder"""
-    print("=" * 50)
-    print("Testing AttnDecoderRNN")
-    print("=" * 50)
-
-    # 1. Create dataset
-    mypairsdataset = MyPairsDataset(my_pairs)
-    print('mypairsdataset--->', mypairsdataset)
-
-    # 2. Create dataloader
-    mydataloader = DataLoader(dataset=mypairsdataset, batch_size=1, shuffle=True)
-
-    # 3. Create models
-    myencodemodel = EncoderRNN(english_word_n, 256).to(device)
-    mydecodemodel = AttnDecoderRNN(
-        output_size=french_word_n,
-        hidden_size=256,
-        dropout_p=0.1,
-        max_length=MAX_LENGTH
-    ).to(device)
-    print('mydecodemodel attention--->', mydecodemodel)
-
-    # 4. Get data and test
-    for i, (x, y) in enumerate(mydataloader):
-        print('x--->', x, x.shape)
-        print('y--->', y, y.shape)
-
-        # Encode: get encoder outputs and hidden state
-        inithiden = myencodemodel.init_hidden()
-        output, hidden = myencodemodel(x, inithiden)
-        print('encoder output shape:', output.shape)
-        print('hidden shape:', hidden.shape)
-
-        # Prepare encoder outputs for attention (pad to max_length=10)
-        encode_output_c = torch.zeros(MAX_LENGTH, 256, device=device)
-        for idx in range(output.shape[1]):
-            encode_output_c[idx] = output[0, idx]
-
-        # Decode: use encoder's last hidden state
-        hidden = hidden  # Use encoder's hidden as decoder's initial hidden
-        for i in range(y.shape[1]):
-            tmp = y[0][i].view(1, -1)
-            output, hidden, attn_weights = mydecodemodel(tmp, hidden, encode_output_c)
-            print('decoder output shape:', output.shape)
-
-        break
-
-    print("=" * 50)
-    print("Test completed!")
-    print("=" * 50)
-
-
-# Test the function
 if __name__ == '__main__':
-    dm_test_AttnDecoderRNN()
-    pass
+    # Test DataLoader
+    dataloader = get_dataloader()
+    for i, (x, y) in enumerate(dataloader):
+        print(f'x: {x.shape}, {x}')
+        print(f'y: {y.shape}, {y}')
+        break
