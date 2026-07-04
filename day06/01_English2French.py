@@ -366,12 +366,162 @@ class AttnDecoderRNN(nn.Module):
 
 
 # ========================================
+# Training parameters
+# ========================================
+epochs = 5
+learning_rate = 1e-4
+teacher_forcing_ratio = 0.5
+print_interval = 1000
+plot_interval = 100
+
+
+# ========================================
+# Training function (single batch)
+# ========================================
+def train_one_batch(x, y, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
+    """
+    Train one batch of data
+    Args:
+        x: input tensor (English)
+        y: target tensor (French)
+        encoder: EncoderRNN model
+        decoder: AttnDecoderRNN model
+        encoder_optimizer: optimizer for encoder
+        decoder_optimizer: optimizer for decoder
+        criterion: loss function
+    Returns:
+        loss: average loss for this batch
+    """
+    # 1. Encode: get encoder outputs and hidden state
+    encode_hidden = encoder.init_hidden()
+    encode_output, encode_hidden = encoder(x, encode_hidden)
+
+    # 2. Prepare decoder inputs
+    # Pad encoder output to MAX_LENGTH for attention
+    encode_output_c = torch.zeros(MAX_LENGTH, encoder.hidden_size, device=device)
+    for idx in range(x.shape[1]):
+        encode_output_c[idx] = encode_output[0, idx]
+
+    # Use encoder's last hidden as decoder's initial hidden
+    decode_hidden = encode_hidden
+
+    # Start with SOS token as first decoder input
+    input_y = torch.tensor([[SOS_token]], device=device)
+
+    # Initialize loss
+    myloss = 0.0
+    y_len = y.shape[1]
+
+    # Decide whether to use teacher forcing
+    use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+
+    if use_teacher_forcing:
+        # Teacher Forcing: use real target as next input
+        for idx in range(y_len):
+            output_y, decode_hidden, attn_weight = decoder(input_y, decode_hidden, encode_output_c)
+            target_y = y[0][idx].view(1)
+            myloss = myloss + criterion(output_y, target_y)
+            # Use real target as next input
+            input_y = y[0][idx].view(1, -1)
+    else:
+        # Without Teacher Forcing: use prediction as next input
+        for idx in range(y_len):
+            output_y, decode_hidden, attn_weight = decoder(input_y, decode_hidden, encode_output_c)
+            target_y = y[0][idx].view(1)
+            myloss = myloss + criterion(output_y, target_y)
+            # Get prediction and use as next input
+            topv, topi = output_y.topk(1)
+            if topi.squeeze().item() == EOS_token:
+                break
+            input_y = topi.detach()
+
+    # 3. Backpropagation
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+    myloss.backward()
+    encoder_optimizer.step()
+    decoder_optimizer.step()
+
+    return myloss.item() / y_len
+
+
+# ========================================
+# Training function (full training loop)
+# ========================================
+def train_seq2seq():
+    """
+    Train the Seq2Seq model
+    Returns:
+        plot_loss_list: list of losses for plotting
+    """
+    # 1. Create dataset and dataloader
+    mypairsdataset = MyPairsDataset(my_pairs)
+    mydataloader = DataLoader(dataset=mypairsdataset, batch_size=1, shuffle=True)
+
+    # 2. Create models
+    my_encoderrnn = EncoderRNN(english_word_n, 256).to(device)
+    my_attndecoderrnn = AttnDecoderRNN(
+        output_size=french_word_n,
+        hidden_size=256,
+        dropout_p=0.1,
+        max_length=MAX_LENGTH
+    ).to(device)
+
+    # 3. Create optimizers
+    myadam_encode = optim.Adam(my_encoderrnn.parameters(), lr=learning_rate)
+    myadam_decode = optim.Adam(my_attndecoderrnn.parameters(), lr=learning_rate)
+
+    # 4. Create loss function
+    mycriterion = nn.NLLLoss()
+
+    # 5. Training loop
+    plot_loss_list = []
+    smoothed_loss = 0.0
+    smooth_factor = 0.95  # EMA smoothing factor
+
+    for epoch_idx in range(1, epochs + 1):
+        print_loss_total = 0.0
+        plot_loss_total = 0.0
+        starttime = time.time()
+
+        for item, (x, y) in enumerate(tqdm(mydataloader, desc=f'Epoch {epoch_idx}'), start=1):
+            # Train one batch
+            myloss = train_one_batch(
+                x, y, my_encoderrnn, my_attndecoderrnn,
+                myadam_encode, myadam_decode, mycriterion
+            )
+            print_loss_total += myloss
+            plot_loss_total += myloss
+
+            # Print loss every print_interval batches
+            if item % print_interval == 0:
+                print_loss_avg = print_loss_total / print_interval
+                print_loss_total = 0
+                tqdm.write('轮次%d 损失%.6f 时间:%d' % (epoch_idx, print_loss_avg, time.time() - starttime))
+
+            # Record loss for plotting every plot_interval batches (with EMA smoothing)
+            if item % plot_interval == 0:
+                plot_loss_avg = plot_loss_total / plot_interval
+                # Exponential moving average
+                smoothed_loss = smooth_factor * smoothed_loss + (1 - smooth_factor) * plot_loss_avg
+                plot_loss_list.append(smoothed_loss)
+                plot_loss_total = 0
+
+        # Save model after each epoch
+        torch.save(my_encoderrnn.state_dict(), './model/my_encoderrnn_%d.pth' % epoch_idx)
+        torch.save(my_attndecoderrnn.state_dict(), './model/my_attndecoderrnn_%d.pth' % epoch_idx)
+
+    # Plot loss curve
+    plt.figure()
+    plt.plot(plot_loss_list)
+    plt.savefig('./img/s2s_loss.png')
+    plt.show()
+
+    return plot_loss_list
+
+
+# ========================================
 # Main entry point
 # ========================================
 if __name__ == '__main__':
-    # Test DataLoader
-    dataloader = get_dataloader()
-    for i, (x, y) in enumerate(dataloader):
-        print(f'x: {x.shape}, {x}')
-        print(f'y: {y.shape}, {y}')
-        break
+    train_seq2seq()
