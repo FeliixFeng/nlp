@@ -521,7 +521,127 @@ def train_seq2seq():
 
 
 # ========================================
+# Evaluation function (prediction)
+# ========================================
+def Seq2Seq_Evaluate(x, my_encoderrnn, my_attndecoderrnn):
+    """
+    Evaluate/predict with trained model
+    Args:
+        x: input tensor (English sentence)
+        my_encoderrnn: trained encoder
+        my_attndecoderrnn: trained decoder
+    Returns:
+        decoded_words: list of predicted French words
+        decoder_attentions: attention weights for visualization
+    """
+    with torch.no_grad():
+        # 1. Encode: get encoder outputs and hidden state
+        encode_hidden = my_encoderrnn.init_hidden()
+        encode_output, encode_hidden = my_encoderrnn(x, encode_hidden)
+
+        # 2. Prepare decoder inputs
+        # Pad encoder output to MAX_LENGTH for attention
+        encoder_outputs_c = torch.zeros(MAX_LENGTH, my_encoderrnn.hidden_size, device=device)
+        x_len = x.shape[1]
+        for idx in range(x_len):
+            encoder_outputs_c[idx] = encode_output[0, idx]
+
+        # Use encoder's last hidden as decoder's initial hidden
+        decode_hidden = encode_hidden
+
+        # Start with SOS token as first decoder input
+        input_y = torch.tensor([[SOS_token]], device=device)
+
+        # 3. Decode with autoregressive mechanism
+        decoded_words = []
+        decoder_attentions = torch.zeros(MAX_LENGTH, MAX_LENGTH)
+
+        for idx in range(MAX_LENGTH):
+            output_y, decode_hidden, attn_weights = my_attndecoderrnn(
+                input_y, decode_hidden, encoder_outputs_c
+            )
+
+            # Get top prediction
+            topv, topi = output_y.topk(1)
+            decoder_attentions[idx] = attn_weights
+
+            # If EOS token, stop
+            if topi.squeeze().item() == EOS_token:
+                decoded_words.append('<EOS>')
+                break
+            else:
+                decoded_words.append(french_index2word[topi.item()])
+
+            # Use prediction as next input
+            input_y = topi.detach()
+
+        return decoded_words, decoder_attentions[:idx + 1]
+
+
+# ========================================
 # Main entry point
 # ========================================
 if __name__ == '__main__':
-    train_seq2seq()
+    # Train model
+    # train_seq2seq()
+
+    # Test evaluation
+    # 1. Create models
+    input_size_enc = english_word_n
+    input_size_dec = french_word_n
+    hidden_size = 256
+
+    my_encoderrnn = EncoderRNN(input_size_enc, hidden_size).to(device)
+    my_attndecoderrnn = AttnDecoderRNN(input_size_dec, hidden_size).to(device)
+
+    # 2. Load trained weights
+    my_encoderrnn.load_state_dict(torch.load('./model/my_encoderrnn_5.pth'))
+    my_attndecoderrnn.load_state_dict(torch.load('./model/my_attndecoderrnn_5.pth'))
+    my_encoderrnn.eval()
+    my_attndecoderrnn.eval()
+    print('Encoder model loaded')
+    print('Decoder model loaded')
+
+    # 3. Test samples (with reference translations)
+    my_samplepairs = [
+        ['i m impressed with your french .', 'je suis impressionne par votre francais .'],
+        ['i m more than a friend .', 'je suis plus qu une amie .'],
+        ['she is beautiful like her mother .', 'vous gagnez n est ce pas ?'],
+    ]
+    print(f'Test samples: {len(my_samplepairs)}')
+
+    for index, pair in enumerate(my_samplepairs):
+        x = pair[0]
+        y = pair[1]
+
+        # Convert text to tensor
+        tmpx = [english_word2index[word] for word in x.split(' ')]
+        tmpx.append(EOS_token)
+        tensor_x = torch.tensor(tmpx, dtype=torch.long, device=device).view(1, -1)
+
+        # Model prediction
+        decoded_words, attentions = Seq2Seq_Evaluate(tensor_x, my_encoderrnn, my_attndecoderrnn)
+        output_sentence = ' '.join(decoded_words)
+
+        # Print results
+        print('\n')
+        print(f'英文>', x)
+        print(f'参考译文=', y)
+        print(f'预测译文<', output_sentence)
+
+    # 4. Attention visualization
+    sentence = "we re both teachers ."
+    tmpx = [english_word2index[word] for word in sentence.split(' ')]
+    tmpx.append(EOS_token)
+    tensor_x = torch.tensor(tmpx, dtype=torch.long, device=device).view(1, -1)
+
+    decoded_words, attentions = Seq2Seq_Evaluate(tensor_x, my_encoderrnn, my_attndecoderrnn)
+    print('decoded_words->', decoded_words)
+
+    # Plot attention matrix
+    plt.matshow(attentions.numpy())
+    plt.savefig('./img/s2s_attn.png')
+    plt.show()
+
+    print('attentions.numpy()--->\n', attentions.numpy())
+    print('attentions.size--->', attentions.size())
