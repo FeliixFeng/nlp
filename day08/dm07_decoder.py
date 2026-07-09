@@ -84,8 +84,10 @@ def use_decoder():
 
     # Test decoder
     result = my_decoder(position_y, encoder_output, source_mask, target_mask)
-    print(f'Decoder output shape: {result.shape}')
-    print(f'Decoder:\n{my_decoder}')
+    # print(f'Decoder output shape: {result.shape}')
+    # print(f'Decoder:\n{my_decoder}')
+
+    return result
 
 
 if __name__ == '__main__':
