@@ -59,8 +59,6 @@ def dm03_test_mask():
     plt.colorbar()
     plt.show()
 
-
-
 # todo 4. Scaled Dot-Product Attention
 def attention(query, key, value, mask=None, dropout=None):
     """
@@ -109,9 +107,6 @@ def use_attention():
     mask = torch.zeros(2, 4, 4)
     result2, p_attn = attention(query, key, value, mask=mask)
     print(f'With mask: {result2.shape}, attn: {p_attn.shape}')
-
-
-
 
 # todo 6. Clone module N times
 def clones(module, N):
@@ -184,7 +179,6 @@ class MultiHeadAttention(nn.Module):
 
         return self.linears[-1](attn_x)
 
-
 # todo 8. Test Multi-Head Attention
 def use_multihead():
     """Test Multi-Head Attention with mask"""
@@ -197,7 +191,6 @@ def use_multihead():
     print(f'Multi-Head Attention: {result.shape}')
 
     return result
-
 
 # todo 9. Feed-Forward Network
 class FeedForward(nn.Module):
@@ -232,7 +225,6 @@ class FeedForward(nn.Module):
         x = self.linear2(x)
         return x
 
-
 # todo 10. Test Feed-Forward Network
 def use_ff():
     """Test Feed-Forward Network with Multi-Head Attention output"""
@@ -244,9 +236,52 @@ def use_ff():
     print(f'Feed-Forward: {result.shape}')
     return result
 
+# todo 11. Layer Normalization
+class LayerNorm(nn.Module):
+    """
+    Layer Normalization
+    Normalizes input across the last dimension (features)
+    """
+    def __init__(self, features, eps=1e-6):
+        """
+        Initialize Layer Normalization
+        Args:
+            features: number of features (d_model)
+            eps: small value for numerical stability
+        """
+        super().__init__()
+        # Learnable scale parameter (gamma)
+        self.a = nn.Parameter(torch.ones(features))
+        # Learnable shift parameter (beta)
+        self.b = nn.Parameter(torch.zeros(features))
+        self.eps = eps
+
+    def forward(self, x):
+        """
+        Forward pass
+        Args:
+            x: input tensor [batch, seq, features]
+        Returns:
+            normalized tensor [batch, seq, features]
+        """
+        # Compute mean and std along the last dimension
+        x_mean = x.mean(-1, keepdim=True)
+        x_std = x.std(-1, keepdim=True)
+
+        # Normalize: (x - mean) / (std + eps)
+        # Then apply scale and shift: gamma * normalized + beta
+        return self.a * (x - x_mean) / (x_std + self.eps) + self.b
 
 
+# todo 12. Test Layer Normalization
+def use_layer_norm():
+    """Test Layer Normalization with Feed-Forward output"""
+    ff_x = use_ff()
+    my_layer_norm = LayerNorm(512)
 
+    result = my_layer_norm(ff_x)
+
+    print(f'LayerNorm: {result.shape}')
 
 
 
@@ -258,4 +293,5 @@ if __name__ == '__main__':
     # dm03_test_mask()
     # use_attention()
     # use_multihead()
-    use_ff()
+    # use_ff()
+    use_layer_norm()
