@@ -58,22 +58,45 @@ def dm04_test_question_answering():
     # Load model and tokenizer directly
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForQuestionAnswering.from_pretrained(model_path)
+    model.eval()
 
     context = '我是王哥, 我是一个工人, 我的喜好是钓鱼和喝茶'
     questions = ['我叫啥?', '我是做什么的?', '我的爱好是什么?']
 
+    # Process each question separately
     for question in questions:
-        # Tokenize
-        inputs = tokenizer(question, context, return_tensors='pt')
+        # Tokenize question and context together
+        inputs = tokenizer(
+            question,
+            context,
+            return_tensors='pt',
+            max_length=512,
+            truncation=True,
+            padding=True
+        )
 
         # Predict
         with torch.no_grad():
             outputs = model(**inputs)
 
-        # Get answer
-        answer_start = torch.argmax(outputs.start_logits)
-        answer_end = torch.argmax(outputs.end_logits) + 1
-        answer = tokenizer.decode(inputs['input_ids'][0][answer_start:answer_end])
+        # Get logits
+        start_logits = outputs.start_logits[0]
+        end_logits = outputs.end_logits[0]
+
+        # Use token_type_ids to find context part (1 = context, 0 = question)
+        token_type_ids = inputs['token_type_ids'][0]
+        context_mask = (token_type_ids == 1).float()
+
+        # Apply mask to only consider context tokens
+        start_logits_masked = start_logits * context_mask + (1 - context_mask) * (-10000)
+        end_logits_masked = end_logits * context_mask + (1 - context_mask) * (-10000)
+
+        # Find best start and end positions
+        start_idx = torch.argmax(start_logits_masked)
+        end_idx = torch.argmax(end_logits_masked) + 1
+
+        # Decode answer
+        answer = tokenizer.decode(inputs['input_ids'][0][start_idx:end_idx])
 
         print(f'Q: {question}')
         print(f'A: {answer}')
