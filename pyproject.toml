@@ -5,7 +5,10 @@ description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=5.0.0",
+    "fasttext>=0.9.3",
+    "httpx[socks]>=0.28.1",
     "jieba>=0.42.1",
+    "numpy<2",
     "setuptools<81",
     "torch>=2.12.1",
     "transformers>=5.12.1",
